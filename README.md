@@ -177,8 +177,8 @@ Mercer. (2023). *Total Remuneration Survey: Canada 2023*. Mercer LLC.
 
 ## Contact
 
-**Oluwutobi Abanishe**
-HR Analyst and People Analytics Specialist
+**Oluwatobi Abanishe**
+People and Business Analytics Specialist
 
 LinkedIn: [linkedin.com/in/oluwatobiabanishe](https://linkedin.com/in/oluwatobiabanishe)
 GitHub: [github.com/TobiAbanishe](https://github.com/TobiAbanishe)
