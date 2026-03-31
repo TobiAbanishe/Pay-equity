@@ -1,0 +1,414 @@
+// ============================================================
+// Project 5: Pay Equity Analysis Dashboard
+// Power BI DAX Measures — Pay Equity Audit
+//
+// Research foundation:
+//   Mercer Global Pay Equity Report (unadjusted vs. adjusted gap methodology)
+//   Willis Towers Watson Pay Equity Audit Framework (compa-ratio as primary metric)
+//
+// Usage: paste each measure into Power BI Desktop > Modeling > New Measure
+// Table: PayEquityData (imported from pay_equity_data.csv or .xlsx)
+// ============================================================
+
+
+// ============================================================
+// PAGE 1: EXECUTIVE SUMMARY
+// KPI cards — headline numbers for leadership view
+// ============================================================
+
+// Total headcount
+Total Headcount =
+COUNTROWS(PayEquityData)
+
+
+// Average base salary (all employees)
+Avg Base Salary =
+AVERAGE(PayEquityData[base_salary])
+
+
+// Average total compensation
+Avg Total Comp =
+AVERAGE(PayEquityData[total_comp])
+
+
+// Male average base salary
+Male Avg Salary =
+CALCULATE(
+    AVERAGE(PayEquityData[base_salary]),
+    PayEquityData[gender] = "Male"
+)
+
+
+// Female average base salary
+Female Avg Salary =
+CALCULATE(
+    AVERAGE(PayEquityData[base_salary]),
+    PayEquityData[gender] = "Female"
+)
+
+
+// Unadjusted gender pay gap percentage
+// Mercer benchmark: ~18% globally. >10% warrants a formal audit.
+Unadjusted Gender Gap % =
+VAR MaleAvg   = [Male Avg Salary]
+VAR FemaleAvg = [Female Avg Salary]
+RETURN
+DIVIDE(MaleAvg - FemaleAvg, MaleAvg) * 100
+
+
+// Pay gap in absolute dollars
+Gender Pay Gap (CAD) =
+[Male Avg Salary] - [Female Avg Salary]
+
+
+// Overall in-band compliance rate
+In-Band Compliance % =
+AVERAGE(PayEquityData[in_band_flag]) * 100
+
+
+// Count of employees below 0.90 compa-ratio (WTW risk threshold)
+Employees Below 0.90 Compa =
+CALCULATE(
+    COUNTROWS(PayEquityData),
+    PayEquityData[compa_ratio] < 0.90
+)
+
+
+// Female employees below 0.90 compa-ratio
+Female Below 0.90 Compa =
+CALCULATE(
+    COUNTROWS(PayEquityData),
+    PayEquityData[compa_ratio] < 0.90,
+    PayEquityData[gender] = "Female"
+)
+
+
+// ============================================================
+// PAGE 2: COMPA-RATIO ANALYSIS
+// WTW framework: compa-ratio = actual salary / range midpoint
+// Target band: 0.85-1.15
+// ============================================================
+
+// Overall average compa-ratio
+Avg Compa-Ratio =
+AVERAGE(PayEquityData[compa_ratio])
+
+
+// Male average compa-ratio
+Male Avg Compa-Ratio =
+CALCULATE(
+    AVERAGE(PayEquityData[compa_ratio]),
+    PayEquityData[gender] = "Male"
+)
+
+
+// Female average compa-ratio
+Female Avg Compa-Ratio =
+CALCULATE(
+    AVERAGE(PayEquityData[compa_ratio]),
+    PayEquityData[gender] = "Female"
+)
+
+
+// Compa-ratio gap: male minus female
+// Positive = males are positioned higher in the band
+Compa-Ratio Gap =
+[Male Avg Compa-Ratio] - [Female Avg Compa-Ratio]
+
+
+// Median compa-ratio (requires DAX PERCENTILE approximation)
+Median Compa-Ratio =
+MEDIANX(PayEquityData, PayEquityData[compa_ratio])
+
+
+// % employees in target band (0.85-1.15)
+// WTW defines this as the acceptable equity range
+% In Target Band =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(PayEquityData),
+        PayEquityData[compa_ratio] >= 0.85,
+        PayEquityData[compa_ratio] <= 1.15
+    ),
+    [Total Headcount]
+) * 100
+
+
+// % employees below minimum band (underpaid risk)
+% Below Min Band =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(PayEquityData),
+        PayEquityData[compa_ratio] < 0.85
+    ),
+    [Total Headcount]
+) * 100
+
+
+// % employees above maximum band (overpaid / equity risk)
+% Above Max Band =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(PayEquityData),
+        PayEquityData[compa_ratio] > 1.15
+    ),
+    [Total Headcount]
+) * 100
+
+
+// Compa-ratio distribution label for conditional formatting
+// Returns "At Risk", "In Band", or "Above Band"
+Compa Band Status =
+SWITCH(
+    TRUE(),
+    AVERAGE(PayEquityData[compa_ratio]) < 0.85,  "At Risk",
+    AVERAGE(PayEquityData[compa_ratio]) > 1.15,  "Above Band",
+    "In Band"
+)
+
+
+// Average compa-ratio by gender — dynamic (respects slicer context)
+Selected Gender Avg Compa =
+CALCULATE(
+    AVERAGE(PayEquityData[compa_ratio]),
+    ALLSELECTED(PayEquityData[gender])
+)
+
+
+// ============================================================
+// PAGE 3: PAY BAND COMPLIANCE
+// Flags employees outside their assigned pay band by department and grade
+// ============================================================
+
+// Count of in-band employees
+In-Band Count =
+CALCULATE(
+    COUNTROWS(PayEquityData),
+    PayEquityData[in_band_flag] = 1
+)
+
+
+// Count of out-of-band employees
+Out-of-Band Count =
+[Total Headcount] - [In-Band Count]
+
+
+// Average range penetration
+// 0 = at range minimum, 1 = at range maximum, 0.5 = at midpoint
+Avg Range Penetration =
+AVERAGE(PayEquityData[range_penetration])
+
+
+// Female average range penetration
+Female Avg Range Penetration =
+CALCULATE(
+    AVERAGE(PayEquityData[range_penetration]),
+    PayEquityData[gender] = "Female"
+)
+
+
+// Male average range penetration
+Male Avg Range Penetration =
+CALCULATE(
+    AVERAGE(PayEquityData[range_penetration]),
+    PayEquityData[gender] = "Male"
+)
+
+
+// Range penetration gap: male minus female
+// A positive number means men sit higher in their bands on average
+Range Penetration Gap =
+[Male Avg Range Penetration] - [Female Avg Range Penetration]
+
+
+// % of department in-band (for bar chart ranking)
+Dept In-Band % =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(PayEquityData),
+        PayEquityData[in_band_flag] = 1
+    ),
+    CALCULATE(
+        COUNTROWS(PayEquityData),
+        ALLSELECTED(PayEquityData[department])
+    )
+) * 100
+
+
+// ============================================================
+// PAGE 4: ADJUSTED VS. UNADJUSTED GAP
+// Decomposition of the pay gap into structural vs. direct components
+// Structural = grade clustering (WTW: ~66% of total gap)
+// Direct = within-grade salary difference (Mercer adjusted gap: ~2-3%)
+// ============================================================
+
+// Average salary within the same grade — baseline for adjusted comparison
+Grade Controlled Avg Salary =
+AVERAGEX(
+    VALUES(PayEquityData[job_grade]),
+    CALCULATE(AVERAGE(PayEquityData[base_salary]))
+)
+
+
+// Adjusted gap proxy — compa-ratio gap within same grade (controls for band position)
+// This approximates the Mercer regression-adjusted gap without a full OLS model
+Adjusted Compa Gap =
+VAR MaleCompa =
+    CALCULATE(
+        AVERAGE(PayEquityData[compa_ratio]),
+        PayEquityData[gender] = "Male",
+        ALLSELECTED(PayEquityData[job_grade])
+    )
+VAR FemaleCompa =
+    CALCULATE(
+        AVERAGE(PayEquityData[compa_ratio]),
+        PayEquityData[gender] = "Female",
+        ALLSELECTED(PayEquityData[job_grade])
+    )
+RETURN MaleCompa - FemaleCompa
+
+
+// Grade index — numeric representation of grade for trend visuals
+Grade Index =
+SWITCH(
+    MAX(PayEquityData[job_grade]),
+    "G1", 1,
+    "G2", 2,
+    "G3", 3,
+    "G4", 4,
+    "G5", 5,
+    "G6", 6,
+    BLANK()
+)
+
+
+// % of grade represented by female employees (grade clustering visual)
+Female Grade Share % =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(PayEquityData),
+        PayEquityData[gender] = "Female"
+    ),
+    CALCULATE(
+        COUNTROWS(PayEquityData),
+        ALLSELECTED(PayEquityData[gender])
+    )
+) * 100
+
+
+// Pay gap decomposition — structural component
+// The portion of the total gap explained by grade distribution differences
+// Formula: total gap minus within-grade adjusted gap = structural component
+Structural Gap Component % =
+VAR TotalGap = [Unadjusted Gender Gap %]
+VAR AdjustedGap = [Adjusted Compa Gap] * 100
+RETURN TotalGap - AdjustedGap
+
+
+// ============================================================
+// PAGE 5: EMPLOYEE DRILL-THROUGH
+// Row-level detail for individual pay position and equity context
+// ============================================================
+
+// Individual compa-ratio label for card visual
+Selected Employee Compa =
+SELECTEDVALUE(PayEquityData[compa_ratio])
+
+
+// Individual base salary
+Selected Employee Salary =
+SELECTEDVALUE(PayEquityData[base_salary])
+
+
+// Grade midpoint for the selected employee
+Selected Employee Range Mid =
+SELECTEDVALUE(PayEquityData[range_mid])
+
+
+// Peer average (same grade, same department) — benchmark line on scatter
+Peer Avg Salary =
+CALCULATE(
+    AVERAGE(PayEquityData[base_salary]),
+    ALLEXCEPT(
+        PayEquityData,
+        PayEquityData[job_grade],
+        PayEquityData[department]
+    )
+)
+
+
+// Peer compa-ratio average (same grade and department context)
+Peer Avg Compa-Ratio =
+CALCULATE(
+    AVERAGE(PayEquityData[compa_ratio]),
+    ALLEXCEPT(
+        PayEquityData,
+        PayEquityData[job_grade],
+        PayEquityData[department]
+    )
+)
+
+
+// Pay position vs. peer: individual salary minus peer average
+Pay Position vs. Peer =
+[Selected Employee Salary] - [Peer Avg Salary]
+
+
+// ============================================================
+// SUPPORTING MEASURES — USED ACROSS MULTIPLE PAGES
+// ============================================================
+
+// Promotion rate — percentage of employees promoted in last 2 years
+Promotion Rate % =
+AVERAGE(PayEquityData[promoted_last_2yr]) * 100
+
+
+// Female promotion rate
+Female Promotion Rate % =
+CALCULATE(
+    AVERAGE(PayEquityData[promoted_last_2yr]),
+    PayEquityData[gender] = "Female"
+) * 100
+
+
+// Male promotion rate
+Male Promotion Rate % =
+CALCULATE(
+    AVERAGE(PayEquityData[promoted_last_2yr]),
+    PayEquityData[gender] = "Male"
+) * 100
+
+
+// Promotion rate gap: male minus female
+// Mercer: a sustained 10% promotion gap compounds into a 12-15% pay gap over 5 years
+Promotion Rate Gap pp =
+[Male Promotion Rate %] - [Female Promotion Rate %]
+
+
+// Average merit increase percentage
+Avg Merit Increase % =
+AVERAGE(PayEquityData[last_increase_pct])
+
+
+// Average merit increase by gender — for performance-controlled comparison
+Female Avg Merit Increase =
+CALCULATE(
+    AVERAGE(PayEquityData[last_increase_pct]),
+    PayEquityData[gender] = "Female"
+)
+
+Male Avg Merit Increase =
+CALCULATE(
+    AVERAGE(PayEquityData[last_increase_pct]),
+    PayEquityData[gender] = "Male"
+)
+
+
+// Dynamic title for visuals — updates with slicer selection
+Dynamic Department Title =
+"Pay Equity Summary: "
+    & IF(
+        ISFILTERED(PayEquityData[department]),
+        SELECTEDVALUE(PayEquityData[department], "Multiple Departments"),
+        "All Departments"
+    )
